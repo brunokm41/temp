@@ -1,0 +1,79 @@
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Credenciais Wi-Fi
+const char* ssid = "Home_Mesh_06";
+const char* password = "taystrOrbi";
+
+// IP fixo
+IPAddress local_IP(192, 168, 1, 200);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0);
+
+// Pino do relé
+const int relePin = 23;
+bool releEstado = false;
+
+// Servidor web
+WebServer server(80);
+
+// Página HTML
+String html() {
+  String estado = releEstado ? "Ligado" : "Desligado";
+  String botao = releEstado ?
+    "<a href=\"/off\"><button style='padding:20px;font-size:20px;background-color:red;color:white;'>Desligar</button></a>" :
+    "<a href=\"/on\"><button style='padding:20px;font-size:20px;background-color:green;color:white;'>Ligar</button></a>";
+
+  String pagina = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Controle de Relé</title></head><body>";
+  pagina += "<h1>Relé está: " + estado + "</h1>";
+  pagina += botao;
+  pagina += "</body></html>";
+  return pagina;
+}
+
+void handleRoot() {
+  server.send(200, "text/html", html());
+}
+
+void handleOn() {
+  digitalWrite(relePin, HIGH);
+  releEstado = true;
+  server.send(200, "text/html", html());
+}
+
+void handleOff() {
+  digitalWrite(relePin, LOW);
+  releEstado = false;
+  server.send(200, "text/html", html());
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(relePin, OUTPUT);
+  digitalWrite(relePin, LOW); // Relé começa desligado
+
+  // Define IP fixo
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("Falha ao configurar IP fixo");
+  }
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando-se ao WiFi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi conectado. IP: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.on("/on", handleOn);
+  server.on("/off", handleOff);
+  server.begin();
+  Serial.println("Servidor HTTP iniciado");
+}
+
+void loop() {
+  server.handleClient();
+}
